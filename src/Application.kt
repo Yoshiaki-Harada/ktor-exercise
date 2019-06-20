@@ -1,35 +1,39 @@
 package com.example
 
-import io.ktor.application.*
-import io.ktor.response.*
-import io.ktor.routing.*
-import io.ktor.http.*
-import io.ktor.gson.*
-import io.ktor.features.*
-import io.ktor.client.*
+import io.ktor.application.Application
+import io.ktor.application.call
+import io.ktor.application.install
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.apache.Apache
+import io.ktor.client.engine.apache.ApacheEngineConfig
+import io.ktor.features.ContentNegotiation
+import io.ktor.gson.gson
+import io.ktor.http.ContentType
 import io.ktor.request.receive
-import org.jetbrains.exposed.dao.*
+import io.ktor.response.respond
+import io.ktor.response.respondText
+import io.ktor.routing.*
+import org.jetbrains.exposed.dao.EntityID
+import org.jetbrains.exposed.dao.IntEntity
+import org.jetbrains.exposed.dao.IntIdTable
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.Database.Companion.connect
-import org.jetbrains.exposed.sql.StdOutSqlLogger
-import org.jetbrains.exposed.sql.addLogger
 import org.jetbrains.exposed.sql.transactions.transaction
 
 fun main(args: Array<String>): Unit = io.ktor.server.netty.EngineMain.main(args)
 
 data class Letter(val name: String, val message: String)
 
-object Tests : IntIdTable() {
+object Tests : Table() {
+    val id = integer("id").primaryKey()
     val title = varchar("title", 20)
 }
 
-class Test(id: EntityID<Int>) : IntEntity(id) {
-    companion object : IntEntityClass<Test>(Tests)
-    
-    var title by Tests.title
-}
+
+data class Test(val id: Int, val title: String)
 
 fun Test.toJson(): TestJson {
-    return TestJson(this.id.value, this.title)
+    return TestJson(this.id, this.title)
 }
 
 data class TestJson(val id: Int, val title: String)
@@ -49,7 +53,10 @@ fun Application.module(testing: Boolean = false) {
         }
     }
 
-    val client = HttpClient() {
+    val client = HttpClient(Apache) {
+        engine {
+
+        }
     }
 
     routing {
@@ -64,8 +71,11 @@ fun Application.module(testing: Boolean = false) {
         get("/tests") {
             val tests = transaction(db) {
                 addLogger(StdOutSqlLogger)
-                Test.all().toList()
+                Tests.selectAll().map {
+                    Test(it[Tests.id], it[Tests.title])
+                }
             }
+
             call.respond(TestJsonList(tests.map { it.toJson() }))
         }
 
@@ -73,9 +83,13 @@ fun Application.module(testing: Boolean = false) {
             val id = call.parameters["id"]
             val test = transaction {
                 addLogger(StdOutSqlLogger)
-                Test.findById(id!!.toInt())
+                Tests.select {
+                    Tests.id eq id!!.toInt()
+                }.map {
+                    Test(it[Tests.id], it[Tests.title])
+                }.first()
             }
-            call.respond(TestJson(test!!.id.value, test.title))
+            call.respond(TestJson(test.id, test.title))
         }
 
         post("/tests/{id}/change") {
@@ -83,7 +97,9 @@ fun Application.module(testing: Boolean = false) {
             val title: String? = call.request.queryParameters["title"]
             val test = transaction {
                 addLogger(StdOutSqlLogger)
-                Test.findById(id!!.toInt())?.title = title!!
+                Tests.update({ Tests.id eq id!!.toInt() }) {
+                    it[Tests.title] = title!!
+                }
             }
             call.respondText("OK!", contentType = ContentType.Text.Plain)
         }
@@ -91,7 +107,7 @@ fun Application.module(testing: Boolean = false) {
         delete("tests/{id}") {
             val id = call.parameters["id"]
             transaction(db) {
-                Test.findById(id!!.toInt())?.delete()
+                Tests.deleteWhere { Tests.id eq id!!.toInt() }
             }
             call.respondText("Delete!", contentType = ContentType.Text.Plain)
         }
@@ -100,16 +116,39 @@ fun Application.module(testing: Boolean = false) {
             val id = call.parameters["id"]
             val inputTestJson = call.receive<InputTestJson>()
             transaction(db) {
-                Test.findById(id!!.toInt())?.let {
-                    it.title == inputTestJson.title
-                } ?: run {
-                    Test.new {
-                        title = inputTestJson.title
+                if (Tests.select { Tests.id eq id!!.toInt() }.count() > 0) {
+                    addLogger(StdOutSqlLogger)
+                    Tests.update({ Tests.id eq id!!.toInt() }) {
+                        it[Tests.title] = inputTestJson.title
+                    }
+                } else {
+                    Tests.insert {
+                        it[Tests.id] = id!!.toInt()
+                        it[Tests.title] = inputTestJson.title
                     }
                 }
             }
             call.respondText("OK!", contentType = ContentType.Text.Plain)
         }
     }
+
 }
 
+//object StarWarsFilms : StringTable() {
+//    val sequelId = integer("sequel_id").uniqueIndex()
+//    val name = varchar("name", 50)
+//    val director = varchar("director", 50)
+//}
+//
+//class StarWarsFilm(id: EntityID<String>) : StringEntity(id) {
+//    companion object : StringEntityClass<StarWarsFilm>(StarWarsFilms)
+//    var sequelId by StarWarsFilms.sequelId
+//    var name     by StarWarsFilms.name
+//    var director by StarWarsFilms.director
+//}
+//
+//val movie = StarWarsFilm.new {
+//    name = "The Last Jedi"
+//    sequelId = 8
+//    director = "Rian Johnson"
+//}
