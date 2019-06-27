@@ -10,6 +10,6 @@ interface MessagePort {
     fun find(id: Id): Message?
     fun find(title: Title): Messages
     fun upsert(message: Message)
-    fun update(message: Message)
+    fun update(message: Message):Int
     fun delete(id: Id): Int
 }
