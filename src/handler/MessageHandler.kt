@@ -1,20 +1,17 @@
 package com.example.handler
 
 import com.example.Injector
-import com.example.Injector.kodein
 import com.example.MessageUsecase
 import com.example.domain.Id
 import com.example.domain.Message
 import com.example.domain.Title
-import com.example.usecase.MessageUsecaseImpl
+import com.example.featureModule
 import io.konform.validation.Valid
 import io.konform.validation.Validation
-import io.konform.validation.jsonschema.minimum
-import io.konform.validation.jsonschema.type
+import io.konform.validation.jsonschema.*
 import io.ktor.application.Application
 import io.ktor.application.call
 import io.ktor.application.install
-import io.ktor.features.ParameterConversionException
 import io.ktor.features.StatusPages
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -23,8 +20,9 @@ import io.ktor.request.receive
 import io.ktor.response.respond
 import io.ktor.response.respondText
 import io.ktor.routing.*
-import io.ktor.routing.delete
+import org.kodein.di.Kodein
 import org.kodein.di.generic.instance
+import org.kodein.di.ktor.kodein
 
 
 data class MessageJson(val id: Int, val title: String)
@@ -35,9 +33,7 @@ data class InputMessageJson(val title: String)
 
 data class JsonCountResponse(val message: String, val count: Int)
 
-data class JsonErrorReponse(val reason: String)
-
-data class JsonError(val reason: List<String>)
+data class JsonErrorsResponse(val reason: List<String>)
 
 val emptyJson = emptyMap<String, String>()
 
@@ -45,18 +41,19 @@ fun Message.toJson(): MessageJson {
     return MessageJson(this.id.value, this.title.value)
 }
 
+@KtorExperimentalLocationsAPI
+fun Application.messageModule() {
+    featureModule()
+    messageModuleWithDeps(Injector.kodein)
+}
 
-fun Application.module() {
-    val usecase: MessageUsecase by Injector.kodein.instance()
-    install(Locations) {
+@KtorExperimentalLocationsAPI
+fun Application.messageModuleWithDeps(kodein: Kodein) {
 
-    }
-    install(StatusPages) {
-        exception<Throwable> { cause ->
-            val errorMessage: String = cause.message ?: "Unknown Error"
-            call.respond(HttpStatusCode.InternalServerError, JsonErrorReponse(errorMessage))
-        }
-    }
+
+    val usecase: MessageUsecase by kodein.instance()
+
+
     routing {
         get("/") {
             call.respondText("HELLO WORLD!", contentType = ContentType.Text.Plain)
@@ -86,7 +83,7 @@ fun Application.module() {
                 }
             } else {
                 val reason = validateId(params)[IdLocation::id] ?: listOf("Unknown Error")
-                call.respond(HttpStatusCode.BadRequest, JsonError(reason))
+                call.respond(HttpStatusCode.BadRequest, JsonErrorsResponse(reason))
             }
         }
 
@@ -115,7 +112,7 @@ fun Application.module() {
                 call.respond(JsonCountResponse("update", result))
             } else {
                 val reason = validateChangeTitle(params)[ChangeTitleLocation::id] ?: listOf("Unknown Error")
-                call.respond(HttpStatusCode.BadRequest, JsonError(reason))
+                call.respond(HttpStatusCode.BadRequest, JsonErrorsResponse(reason))
             }
         }
 
@@ -123,7 +120,7 @@ fun Application.module() {
         data class DeleteIdLocation(val id: Int)
 
         val validateDeleteId = Validation<DeleteIdLocation> {
-            DeleteIdLocation::id {
+            DeleteIdLocation::id  {
                 minimum(0)
             }
         }
@@ -134,7 +131,7 @@ fun Application.module() {
                 call.respond(JsonCountResponse("delete", result))
             } else {
                 val reason = validateDeleteId(params)[DeleteIdLocation::id] ?: listOf("Unknown Error")
-                call.respond(HttpStatusCode.BadRequest, JsonError(reason))
+                call.respond(HttpStatusCode.BadRequest, JsonErrorsResponse(reason))
             }
         }
 
@@ -146,20 +143,25 @@ fun Application.module() {
                 minimum(0)
             }
         }
+
+        val validateInputMessage = Validation<InputMessageJson> {
+            InputMessageJson::title required {}
+        }
+
         put<PutMessageLocation> { params ->
             if (validatePutMessageLocation(params) is Valid) {
                 val id = params.id
-                runCatching {
-                    val message = call.receive<InputMessageJson>()
+                val message = call.receive<InputMessageJson>()
+                if (validateInputMessage(message) is Valid) {
                     usecase.upsert(Message(Id(id), Title(message.title)))
-                }.onFailure {
-                    call.respond(HttpStatusCode.BadRequest, JsonErrorReponse("json : validation error"))
-                }.onSuccess { m ->
                     call.respond(emptyMap<String, String>())
+                } else {
+                    val reason = validateInputMessage(message)[InputMessageJson::title] ?: listOf("Unknown Error")
+                    call.respond(HttpStatusCode.BadRequest, JsonErrorsResponse(reason))
                 }
             } else {
                 val reason = validatePutMessageLocation(params)[PutMessageLocation::id] ?: listOf("Unknown Error")
-                call.respond(HttpStatusCode.BadRequest, JsonError(reason))
+                call.respond(HttpStatusCode.BadRequest, JsonErrorsResponse(reason))
             }
         }
 

@@ -34,14 +34,19 @@ repositories {
     jcenter()
     maven { url 'https://kotlin.bintray.com/ktor' }
     maven { url "https://dl.bintray.com/konform-kt/konform" }
+}
 
+test {
+    useJUnitPlatform()
 }
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     compile "org.kodein.di:kodein-di-generic-jvm:6.3.1"
-    implementation 'org.kodein.di:kodein-di-framework-ktor-server-jvm:6.3.1'
+    implementation "org.kodein.di:kodein-di-framework-ktor-server-jvm:$kodein_version"
     implementation 'io.konform:konform:0.1.0'
+    implementation "com.google.code.gson:gson:$gson_version"
+    implementation "io.github.config4k:config4k:$config4k_version"
     implementation "io.ktor:ktor-locations:$ktor_version"
     compile "io.ktor:ktor-server-netty:$ktor_version"
     compile "ch.qos.logback:logback-classic:$logback_version"
@@ -50,10 +55,10 @@ dependencies {
     compile "io.ktor:ktor-client-core:$ktor_version"
     compile "io.ktor:ktor-client-core-jvm:$ktor_version"
     compile "io.ktor:ktor-client-apache:$ktor_version"
-    compile "org.jetbrains.exposed:exposed:0.14.4"
     compile "io.requery:requery:$requery_version"
     compile "io.requery:requery-kotlin:$requery_version"
     kapt "io.requery:requery-processor:$requery_version"
     compile group: 'mysql', name: 'mysql-connector-java', version: '8.0.16'
     testCompile "io.ktor:ktor-server-tests:$ktor_version"
+    testImplementation 'io.kotlintest:kotlintest-runner-junit5:3.3.2'
 }

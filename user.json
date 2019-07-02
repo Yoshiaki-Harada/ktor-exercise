@@ -1,0 +1,5 @@
+{
+  "name": "test",
+  "pass": "test",
+  "url": "jdbc:mysql://localhost:3306/test"
+}

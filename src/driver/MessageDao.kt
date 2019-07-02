@@ -1,13 +1,12 @@
 package driver
 
-import com.example.driver.DatasourceProvider
+import io.requery.Persistable
 import io.requery.kotlin.eq
 import io.requery.kotlin.findAttribute
+import io.requery.sql.KotlinEntityDataStore
 
 
-
-class MessageDao(provider: DatasourceProvider) : MessageDriver {
-    private val data = provider.data
+class MessageDao(private val data: KotlinEntityDataStore<Persistable>) : MessageDriver {
 
     override fun findAll(): List<MessageEntity> {
         return data.withTransaction {
