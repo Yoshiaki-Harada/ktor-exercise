@@ -156,14 +156,13 @@ fun Application.messageModuleWithDeps(kodein: Kodein) {
                     usecase.upsert(Message(Id(id), Title(message.title)))
                     call.respond(emptyMap<String, String>())
                 } else {
-                    val reason = validateInputMessage(message)[InputMessageJson::title] ?: listOf("Unknown Error")
-                    call.respond(HttpStatusCode.BadRequest, JsonErrorsResponse(reason))
+                    val reason = validateInputMessage(message) ?: listOf("Unknown Error")
+                    call.respond(HttpStatusCode.BadRequest, reason)
                 }
             } else {
                 val reason = validatePutMessageLocation(params)[PutMessageLocation::id] ?: listOf("Unknown Error")
                 call.respond(HttpStatusCode.BadRequest, JsonErrorsResponse(reason))
             }
         }
-
     }
 }

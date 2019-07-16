@@ -1,4 +1,4 @@
-package handler
+package com.example.handler
 
 import com.example.Injector
 import com.example.MessageUsecase
@@ -6,41 +6,42 @@ import com.example.domain.Id
 import com.example.domain.Message
 import com.example.domain.Messages
 import com.example.domain.Title
-import com.example.featureModule
-import com.example.handler.messageModule
-import com.example.handler.messageModuleWithDeps
-import io.ktor.application.Application
-import io.ktor.client.tests.utils.main
-import io.ktor.config.MapApplicationConfig
-import io.ktor.http.HttpMethod
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.testing.handleRequest
+import io.kotlintest.specs.StringSpec
+import io.kotlintest.shouldBe
 import io.ktor.server.testing.withTestApplication
-import org.apache.http.client.methods.HttpGet
-
 import org.kodein.di.Kodein
 import org.kodein.di.generic.bind
 import org.kodein.di.generic.singleton
-import kotlin.test.*
+import io.ktor.client.tests.utils.main
+import io.ktor.server.testing.TestApplicationEngine
+import com.example.featureModule
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.testing.TestApplicationCall
+import io.ktor.server.testing.handleRequest
 
-internal class MessageHandlerKtTest {
-    @Test
-    fun testRequest() = withTestApplication({
-        var child = Kodein {
-            extend(Injector.kodein)
-            bind<MessageUsecase>(overrides = true) with singleton { TestMessageUsecase() }
-        }
-        featureModule()
-        messageModuleWithDeps(child)
-    }) {
-        with(handleRequest(HttpMethod.Get, "/messages")) {
-            assertEquals(HttpStatusCode.OK, response.status())
-            assertEquals(
-                "{}", response.content
-            )
+
+class MessageHandlerKtTest : StringSpec() {
+
+    init {
+        "Find All" {
+            withTestApplication {
+                var child = Kodein {
+                    extend(Injector.kodein)
+                    bind<MessageUsecase>(overrides = true) with singleton { TestMessageUsecase() }
+                }
+                this.application.featureModule()
+                this.application.messageModuleWithDeps(child)
+                with(handleRequest(HttpMethod.Get, "/messages")) {
+                    response.status() shouldBe HttpStatusCode.OK
+                    response.content shouldBe "{}"
+                }
+            }
         }
     }
+
 }
+
 
 class TestMessageUsecase : MessageUsecase {
     override fun find(id: Id): Message? {
